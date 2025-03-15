@@ -100,16 +100,21 @@ public class BoardController : MonoBehaviour
             if (Input.GetMouseButtonDown(0))
             {
                 var hit = Physics2D.Raycast(m_cam.ScreenToWorldPoint(Input.mousePosition), Vector2.zero);
-                if (hit.collider != null)
+                Cell clickedCell = hit.collider.GetComponent<Cell>();
+                if (clickedCell != null)
                 {
-                    Cell clickedCell = hit.collider.GetComponent<Cell>();
-                    if (clickedCell != null && !clickedCell.IsEmpty)
+                    if (!clickedCell.IsEmpty)
                     {
-                        //StopHints();
-                        MoveItemToExtraRow(clickedCell);
+                        // Kiểm tra xem ô được click có thuộc hàng phụ không
+                        if (System.Array.IndexOf(m_board.ExtraRowCells, clickedCell) >= 0 && m_currentMode == GameManager.eLevelMode.TIMER)
+                        {
+                            ReturnItemToMainBoard(clickedCell);
+                        }
+                        else
+                        {
+                            MoveItemToExtraRow(clickedCell);
+                        }
                     }
-                    //m_isDragging = true;
-                    //m_hitCollider = hit.collider;
                 }
             }
         }
@@ -238,7 +243,7 @@ public class BoardController : MonoBehaviour
             }
         }
 
-        if (isExtraRowFull && m_board.HasItemsOnMainBoard())
+        if (isExtraRowFull && m_board.HasItemsOnMainBoard() && m_currentMode != GameManager.eLevelMode.TIMER)
         {
             m_gameOver = true;
             m_gameManager.GameOver();
@@ -440,7 +445,42 @@ public class BoardController : MonoBehaviour
         }
     }
     #endregion 
-    
+    private void ReturnItemToMainBoard(Cell extraCell)
+    {
+        if (extraCell.IsEmpty || !(extraCell.Item is Item item)) return;
+
+        // Tìm một ô trống trên bảng chính
+        Cell targetCell = FindEmptyCellOnMainBoard();
+        if (targetCell != null)
+        {
+            IsBusy = true;
+            extraCell.Free();
+            targetCell.Assign(item);
+            item.SetViewRoot(m_board.root.transform);
+            item.AnimationMoveToPosition();
+
+            DOVirtual.DelayedCall(0.2f, () =>
+            {
+                CheckAndClearMatchingItems();
+                IsBusy = false;
+            });
+        }
+    }
+    private Cell FindEmptyCellOnMainBoard()
+    {
+        for (int x = 0; x < m_board.BoardSizeX; x++)
+        {
+            for (int y = 0; y < m_board.BoardSizeY; y++)
+            {
+                Cell cell = m_board.Cells[x, y];
+                if (cell.IsEmpty)
+                {
+                    return cell;
+                }
+            }
+        }
+        return null;
+    }
     private void FindMatchesAndCollapse()
     {
         List<Cell> matches = m_board.FindFirstMatch();
